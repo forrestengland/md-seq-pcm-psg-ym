@@ -34,6 +34,7 @@ void YM2612_write(const uint16_t port, const char data);
 void YM2612_writeReg(const uint16_t part, const uint8_t reg, const uint8_t data);
 void YM2612_enableDAC();
 void YM2612_disableDAC();
+void YM2612_latchDacDataReg();
 void ym_write(int which, uint8_t addr, uint8_t value);
 void play_sine_wave();
 ym_pitch_t midi_to_ym2612(unsigned char midi_note);

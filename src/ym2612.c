@@ -302,3 +302,7 @@ void noteon_chan0() {
 void noteoff_chan0() {
   ym_write(0, 0x28, 0x00); // key off
 }
+
+void YM2612_latchDacDataReg() {
+  ym_write(0, 0x2A, 0x80); // make it so z80 can keep sending dac data
+}

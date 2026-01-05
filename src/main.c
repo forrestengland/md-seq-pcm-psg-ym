@@ -59,7 +59,7 @@ int gateseq[16] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 int accseq[16] = {1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0}; // accent sequence
 int speedseq[16] = {20,21,22,30,29,28,10,12,14,15,13,11,9,8,7,6}; // playback speed sequence
 int seqpos = 0; // current playback sequence position
-int framemod = 10; // how many frames to wait before the next sequencer step
+int framemod = 11; // how many frames to wait before the next sequencer step
 int column = 0; // editing column
 int oldcolumn = 0; // last editing column to check for A button press change
 #define COLUMN_COUNT 3 // number of columns
@@ -767,10 +767,12 @@ int main() {
 	  noteoff_chan0();
 	  ym_set_pitch_ch0(ymNoteSeq[seqpos]);
 	  noteon_chan0();
+	  YM2612_latchDacDataReg();
 	  Z80_releaseBus();
 	} else {
 	  Z80_requestBus(1);
 	  noteoff_chan0();
+	  YM2612_latchDacDataReg();
 	  Z80_releaseBus();
 	}
 
@@ -796,7 +798,7 @@ int main() {
 	} else {
 	  // we have to stop the sample if it's not set every step or we hear noise.
 	  // didn't happen until I added the ym code
-	  stop_sample();
+//	  stop_sample();
 	}
 	seqpos = (seqpos + 1) % 16;
 	
