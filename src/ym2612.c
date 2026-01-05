@@ -115,6 +115,19 @@ void __attribute__ ((noinline)) YM2612_reset(int takez80bus)
         }
     }
 
+    // extra stuff from play_sinewave needed to make it play - not sure why yet
+    ym_write(0, 0x22, 8 & 1); // Enable LFO
+    ym_write(0, 0x27, 0x00); // Normal mode (Timer/Ch3)
+    ym_write(0, 0xB0, 0x06); // Algorithm 0 , Feedback 6
+    ym_write(0, 0xB4, 0xFD); // Panning: Left + Right enable (bit 8 and 7), amplitude mod sensitivity (bit 6 and 5),
+                             // frequency mod sensitivity (bit 3,2,1)
+    ym_write(0, 0x3C, 0x01); // DT1/Multi: Multiplier 1 ch0 op4
+    ym_write(0, 0x38, 0x52); // DT1/Multi: (bits 7-5 detune) (bits 4-1 multiplier) ch0 op3
+    ym_write(0, 0x44, 0x7F); // Op 2 TL: 127 (Mute)
+    ym_write(0, 0x48, 0x0a); // Op 3 TL: 127 (Mute)
+    ym_write(0, 0x4C, 0x00); // Op 4 TL
+    ym_write(0, 0x5C, 0x1F); // Attack Rate: 31 (Instant) ch 0 operator 4    
+
     // ALL KEY OFF
     //    YM2612_write(0, 0x28);
     //    for (ch = 0; ch < 3; ch++)
@@ -215,28 +228,29 @@ void play_sine_wave() {
     ym_write(0, 0x4C, 0x00); // Op 4 TL
     
     ym_write(0, 0x5C, 0x1F); // Attack Rate: 31 (Instant) ch 0 operator 4
-    ym_write(0, 0x58, 0x1F); // Attack Rate: 31 (Instant) ch 0 operator 3
     
-    ym_write(0, 0x6C, 0x05); // enable amplitude modulation (bit 8), ch0 op4
+    //    ym_write(0, 0x58, 0x1F); // Attack Rate: 31 (Instant) ch 0 operator 3
+    
+    //    ym_write(0, 0x6C, 0x05); // enable amplitude modulation (bit 8), ch0 op4
                              // Decay Rate 1: 0 (Infinite) (bit 5-1)
-    ym_write(0, 0x68, 0x05); // ch0 op3
+    //    ym_write(0, 0x68, 0x05); // ch0 op3
     
     
-    ym_write(0, 0x8C, 0x09); // Sustain Level: 0 (Max) (bit 8-5) ch0 op4
+    //    ym_write(0, 0x8C, 0x09); // Sustain Level: 0 (Max) (bit 8-5) ch0 op4
                              // Release Rate           (bit 4-1)
-    ym_write(0, 0x88, 0x09); // Sustain Level: 0 (Max) (bit 8-5) ch0 op3    
+    //    ym_write(0, 0x88, 0x09); // Sustain Level: 0 (Max) (bit 8-5) ch0 op3    
 
-    ym_write(0, 0x7C, 0x02); // sustain rate ch0 op4
-    ym_write(0, 0x7C, 0x02); // sustain rate ch0 op3    
+    //    ym_write(0, 0x7C, 0x02); // sustain rate ch0 op4
 
     // --- Set Pitch & Trigger ---
-    const unsigned int fnum = 0x22b; // middle c
-    const char block = 4;
-    ym_write(0, 0xA4, ((block << 3) | fnum >> 8)); // Frequency High (Block 4)
-    ym_write(0, 0xA0, fnum & 0xff); // Frequency Low
+    //    const unsigned int fnum = 0x22b; // middle c
+    //    const char block = 4;
+    //    ym_write(0, 0xA4, ((block << 3) | fnum >> 8)); // Frequency High (Block 4)
+    //    ym_write(0, 0xA0, fnum & 0xff); // Frequency Low
     
     // Key On: Trigger Channel 1 (Operators 1-4)
-    ym_write(0, 0x28, 0xF0);
+    
+    // ym_write(0, 0x28, 0xF0);
 }
 
 ym_pitch_t midi_to_ym2612(unsigned char midi_note)

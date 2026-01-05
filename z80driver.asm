@@ -39,10 +39,6 @@ stop_playing:
      or a            ; Is it non-zero?
      jr z, main_loop ; Wait if 0
 
-    ;;  2. Select DAC Data Register 
-    ld a, ymDacData_reg
-    ld (ymPort0_addr), a
-
 play_pcm_start:
 	
     ; Play PCM Sample (Example: fixed location at Z80 $8000)
@@ -52,6 +48,10 @@ play_pcm_start:
 
     ; Length of sample 
     ld bc, (sampleLength_addr)
+
+    ;;  2. Select DAC Data Register 
+    ld a, ymDacData_reg
+    ld (ymPort0_addr), a
 
 play_pcm:
 
@@ -63,7 +63,8 @@ play_pcm:
     ; accent is zero, attenuate
     ld a, (hl)      ; Load sample byte    
     srl a          ; divide it by 2
-;    lsr a          ; divide it by 2
+;    call ym2612_wait
+
     ld (ymPort0_data), a ; output to dac
     jr inc_samplecounter
 
@@ -72,6 +73,8 @@ skip_attenuate:
     nop ; make take same amount of time as accented
     nop
     nop     
+;    call ym2612_wait
+
     ld (ymPort0_data), a ; output to dac
 
 inc_samplecounter:  
@@ -105,3 +108,8 @@ wait:
     ld (playCommand_addr), a  ; Clear command byte
     jr main_loop
 
+ym2612_wait:  ; wait for the ym to be ready to recieve a command
+    ld a, (ymPort0_addr) ; read the register
+    or a ; is it zero?
+    jr nz, ym2612_wait ; wait if not zero
+    ret

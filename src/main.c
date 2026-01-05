@@ -90,6 +90,7 @@ typedef struct {
   uint8_t accent[16];
   uint8_t speed[16];
   uint8_t psgnote[16];
+  uint8_t ymNoteCh0[16];
   uint8_t  checksum;      // Simple checksum for data integrity - (ignored here)
   uint8_t  padding;       // Padding to ensure alignment if needed, although 8-bit access is standard
 } GameSaveData;
@@ -191,6 +192,7 @@ void savegame_init(void) {
 	accseq[i] = mySave.accent[i];
 	speedseq[i] = mySave.speed[i];
 	psgNoteSeq[i] = mySave.psgnote[i];
+	ymNoteSeq[i] = mySave.ymNoteCh0[i];
       }
       vdp_text_clear(VDP_PLAN_A, 3, 18, 40);
       vdp_puts(VDP_PLAN_A, "saved sequence loaded", 3, 18);
@@ -202,6 +204,7 @@ void savegame_init(void) {
 	  mySave.sequence[i] = accseq[i];
 	  mySave.speed[i] = speedseq[i];
 	  mySave.psgnote[i] = psgNoteSeq[i];
+	  mySave.ymNoteCh0[i] = ymNoteSeq[i];
 	}
         // Calculate and set initial checksum
         mySave.checksum = calculate_checksum(&mySave); 
@@ -217,6 +220,7 @@ void savegame() {
     mySave.accent[i] = accseq[i];
     mySave.speed[i] = speedseq[i];
     mySave.psgnote[i] = psgNoteSeq[i];
+    mySave.ymNoteCh0[i] = ymNoteSeq[i];
   }
   mySave.checksum = calculate_checksum(&mySave); // Update checksum before saving
   save_game_to_sram(&mySave);
@@ -332,9 +336,9 @@ void displayPCMScreen() {
     }  
 
     // print the cursors
-    vdp_puts(VDP_PLAN_A, "-->", 0, 0);
-    vdp_puts(VDP_PLAN_A, ">", 5, 0);
-    vdp_puts(VDP_PLAN_A, "<", 8, 0);    
+    vdp_puts(VDP_PLAN_A, "-->", 0, seqpos);
+    vdp_puts(VDP_PLAN_A, ">", 5, selectstep);
+    vdp_puts(VDP_PLAN_A, "<", 8, selectstep);    
   }
 
   // update the cursors
@@ -385,9 +389,9 @@ void displayPSGScreen() {
     }      
 
     // print the cursors
-    vdp_puts(VDP_PLAN_A, "-->", 0, 0);
-    vdp_puts(VDP_PLAN_A, ">", 5, 0);
-    vdp_puts(VDP_PLAN_A, "<", 8, 0);    
+    vdp_puts(VDP_PLAN_A, "-->", 0, seqpos);
+    vdp_puts(VDP_PLAN_A, ">", 5, selectstep);
+    vdp_puts(VDP_PLAN_A, "<", 8, selectstep);    
 
   }
 
@@ -428,9 +432,9 @@ void displayYMScreen() {
     }      
 
     // print the cursors
-    vdp_puts(VDP_PLAN_A, "-->", 0, 0);
-    vdp_puts(VDP_PLAN_A, ">", 5, 0);
-    vdp_puts(VDP_PLAN_A, "<", 8, 0);    
+    vdp_puts(VDP_PLAN_A, "-->", 0, seqpos);
+    vdp_puts(VDP_PLAN_A, ">", 5, selectstep);
+    vdp_puts(VDP_PLAN_A, "<", 8, selectstep);    
   }
 
   // update the cursors
@@ -476,9 +480,9 @@ int main() {
 
   YM2612_reset(1);
 
-  Z80_requestBus(1);
-  play_sine_wave();
-  Z80_releaseBus();
+  //      Z80_requestBus(1);
+  //      play_sine_wave();
+  //      Z80_releaseBus();
   
   vdp_tiles_load(blankTile, 100, 1);
   vdp_tiles_load(fillTile, 101, 1);
@@ -772,7 +776,9 @@ int main() {
 
 	/* pcm sequencer */
 	if (gateseq[seqpos]) { // do we need to play a sample?
+	  
 	  stop_sample(); // stop any playing first
+	  
 	  if (accseq[seqpos] == 1) {
 	    set_accent(1); // set the accent
 	  } else {
@@ -787,6 +793,10 @@ int main() {
 	  }
 	  set_dacSpeed(speedseq[seqpos]); // set the playback speed
 	  play_sample();
+	} else {
+	  // we have to stop the sample if it's not set every step or we hear noise.
+	  // didn't happen until I added the ym code
+	  stop_sample();
 	}
 	seqpos = (seqpos + 1) % 16;
 	
