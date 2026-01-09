@@ -37,6 +37,12 @@ static void writeSlotReg(uint16_t port, uint8_t ch, uint8_t sl,
     YM2612_write((port * 2) + 1, value);
 }
 
+void YM2612_writeSlotReg(uint16_t port, uint8_t ch, uint8_t sl,
+			 uint8_t reg, uint8_t value) {
+  writeSlotReg(port, ch, sl, reg, value);
+}
+
+
 // write a specific channel register
 static void writeChannelReg(uint16_t port, uint8_t ch, uint8_t reg,
 			    uint8_t value)
@@ -58,31 +64,27 @@ void __attribute__ ((noinline)) YM2612_reset(int takez80bus)
     YM2612_write(0, 0x22);
     YM2612_write(1, 0x00);
 
-    // disable timer & set channel 6 to normal mode
-    //    YM2612_write(0, 0x27);
-    //    YM2612_write(1, 0x00);
-
-    // disable DAC
-    //    YM2612_write(0, 0x2B);
-    //    YM2612_write(1, 0x00);
-
-    for(p = 0; p < 2; p++)
+    for(p = 0; p < 2; p++) // port - 0 or 1 to control channels 0-3 or 4-6
     {
-        for(ch = 0; ch < 3; ch++)
+      for(ch = 0; ch < 3; ch++) // channel on current port - 0-2
         {
-            for(sl = 0; sl < 4; sl++)
+	  for(sl = 0; sl < 4; sl++) // 'slot' - operator on current channel and port
             {
 
 	      if (p == 1 && ch == 2) continue; // don't mess with our dac channel
 		
                 // DT1 - MUL
                 writeSlotReg(p, ch, sl, 0x30, 0x00);
+		
                 // TL set to max (silent)
                 writeSlotReg(p, ch, sl, 0x40, 0x7F);
+		
                 // RS - AR
                 writeSlotReg(p, ch, sl, 0x50, 0x00);
+		
                 // AM - D1R
                 writeSlotReg(p, ch, sl, 0x60, 0x00);
+		
                 // D2R
                 writeSlotReg(p, ch, sl, 0x70, 0x00);
                 // D1L - RR set to max

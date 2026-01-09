@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+// tile for background of level meter
 const uint32_t blankTile[8] = {
   0x11111111,
   0x11111111,
@@ -19,6 +20,7 @@ const uint32_t blankTile[8] = {
   0x11111111
 };
 
+// level meter active tile
 const uint32_t fillTile[8] = {
   0x33333333,
   0x44444444,
@@ -30,6 +32,7 @@ const uint32_t fillTile[8] = {
   0x33333333
 };
 
+// background tile
 const uint32_t gradTile[8] = {
   0x789aa987,
   0x789aa987,
@@ -60,15 +63,39 @@ int accseq[16] = {1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0}; // accent sequence
 int speedseq[16] = {20,21,22,30,29,28,10,12,14,15,13,11,9,8,7,6}; // playback speed sequence
 int seqpos = 0; // current playback sequence position
 int framemod = 11; // how many frames to wait before the next sequencer step
+
+/* gui stuff */
 int column = 0; // editing column
 int oldcolumn = 0; // last editing column to check for A button press change
 #define COLUMN_COUNT 3 // number of columns
 int screen = 0; // whether we're viewing the pcm or psg screen
 int oldscreen = -1;
-#define SCREEN_COUNT 3 // number of different screens to switch through by pressing the B button
+#define SCREEN_COUNT 4 // number of different screens to switch through by pressing the B button
+#define SCREEN_PCM_SEQ 0
+#define SCREEN_PSG_SEQ 1
+#define SCREEN_YM_SEQ 2
+#define SCREEN_YM_INST 3
 int playing = 0; // whether to advance the sequencer
 int playingCanChange = 1;
-
+/* ym inst gui */
+int ym_select_field = 0;
+int ym_select_field_old = -1;
+#define YM_FIELD_LFO_ENABLE 0
+#define YM_FIELD_LFO_SPEED 1
+#define YM_FIELD_DETUNE 2
+#define YM_FIELD_MULT 3
+#define YM_FIELD_LEVEL 4
+#define YM_FIELD_COUNT 5
+uint8_t ym_lfo_enable = 0;
+uint8_t ym_lfo_enable_old = 255;
+uint8_t ym_lfo_speed = 0;
+uint8_t ym_lfo_speed_old = 255;
+uint8_t ym_0_0_0_detune = 0;
+uint8_t ym_0_0_0_detune_old = 0;
+uint8_t ym_0_0_0_mult = 1;
+uint8_t ym_0_0_0_mult_old = 1;
+uint8_t ym_level = 0;
+uint8_t ym_level_old = 255;
 /* psg sequencer */
 int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
 
@@ -309,7 +336,7 @@ void displayPCMScreen() {
 
     clearScreen();
 
-    vdp_puts(VDP_PLAN_A, "PCM", SCREEN_TILEW - 4, 0);    
+    vdp_puts(VDP_PLAN_A, "PCM SEQ", SCREEN_TILEW - 8, 0);    
     
     // print the step number column
     for (int step = 0; step < 16; step++) {
@@ -374,7 +401,7 @@ void displayPSGScreen() {
 
   if (screen != oldscreen) {
     clearScreen();
-    vdp_puts(VDP_PLAN_A, "PSG", SCREEN_TILEW - 4, 0);
+    vdp_puts(VDP_PLAN_A, "PSG SEQ", SCREEN_TILEW - 8, 0);
 
     // print the step number column
     for (int step = 0; step < 16; step++) {
@@ -417,7 +444,7 @@ void displayYMScreen() {
   if (screen != oldscreen) {
 
     clearScreen();
-    vdp_puts(VDP_PLAN_A, "YMF", SCREEN_TILEW - 4, 0);
+    vdp_puts(VDP_PLAN_A, "YM SEQ ", SCREEN_TILEW - 8, 0);
 
     // print the step number column
     for (int step = 0; step < 16; step++) {
@@ -453,6 +480,92 @@ void displayYMScreen() {
   }  
 }
 
+void displayYMInstScreen() {
+
+  char s[255];
+  
+  if (screen != oldscreen) {
+
+    clearScreen();
+    vdp_puts(VDP_PLAN_A, "YM INST", SCREEN_TILEW - 8, 0);
+
+    vdp_puts(VDP_PLAN_A, "lfo enable:", 0, 0);
+    sprintf(s, "%d", ym_lfo_enable);
+    vdp_puts(VDP_PLAN_A, s, 12, 0);
+
+    vdp_puts(VDP_PLAN_A, "lfo speed :", 0, 1);
+    sprintf(s, "%d", ym_lfo_speed);
+    vdp_puts(VDP_PLAN_A, s, 12, 1);
+
+    vdp_puts(VDP_PLAN_A, "detune    :", 0, 2);
+    sprintf(s, "%d", ym_0_0_0_detune);
+    vdp_puts(VDP_PLAN_A, s, 12, 2);
+
+    vdp_puts(VDP_PLAN_A, "mult     :", 0, 3);
+    sprintf(s, "%d", ym_0_0_0_mult);
+    vdp_puts(VDP_PLAN_A, s, 12, 3);    
+
+    vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
+    vdp_puts(VDP_PLAN_A, "<", 13, ym_select_field);
+    
+  } else {
+    if (ym_select_field != ym_select_field_old) {
+      if (ym_select_field_old > -1) { // set to -1 on startup, otherwise erase old cursor pos
+	vdp_puts(VDP_PLAN_A, " ", 11, ym_select_field_old);
+	vdp_puts(VDP_PLAN_A, " ", 13, ym_select_field_old);
+      }
+      vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
+      vdp_puts(VDP_PLAN_A, "<", 13, ym_select_field);
+      ym_select_field_old = ym_select_field;
+    }
+    if (ym_lfo_enable != ym_lfo_enable_old) {
+      sprintf(s, "%d", ym_lfo_enable);
+      vdp_puts(VDP_PLAN_A, s, 12, 0);
+      ym_lfo_enable_old = ym_lfo_enable;
+    }
+    if (ym_lfo_speed != ym_lfo_speed_old) {
+      sprintf(s, "%d", ym_lfo_speed);
+      vdp_puts(VDP_PLAN_A, s, 12, 1);
+      ym_lfo_speed_old = ym_lfo_speed;
+    }
+    if (ym_0_0_0_detune != ym_0_0_0_detune_old) {
+      vdp_puts(VDP_PLAN_A, "detune    :", 0, 2);
+      sprintf(s, "%d", ym_0_0_0_detune);
+      vdp_puts(VDP_PLAN_A, s, 12, 2);
+      ym_0_0_0_detune_old = ym_0_0_0_detune;
+    }
+    if (ym_0_0_0_mult != ym_0_0_0_mult_old) {
+      vdp_puts(VDP_PLAN_A, "mult      :", 0, 3);
+      sprintf(s, "%d", ym_0_0_0_mult);
+      vdp_puts(VDP_PLAN_A, s, 12, 3);
+      ym_0_0_0_mult_old = ym_0_0_0_mult;
+    }    
+  }
+
+}
+
+void set_ym_lfo(uint8_t enable, uint8_t speed) {
+  Z80_requestBus(1);
+  YM2612_write(0, 0x22);
+  YM2612_write(1, (enable << 3) | (speed & 0x07));
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_detune_mult(uint8_t detune, uint8_t mult) {
+  Z80_requestBus(1);
+  // DT1 - MUL
+  uint8_t val = ((detune & 0x07) << 4) | (mult & 0x0F);
+  ym_write(0, 0x3C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  //  ym_write(0, 0x38, 0x52); // DT1/Multi: (bits 7-5 detune) (bits 4-1 multiplier) ch0 op3  
+  //  YM2612_writeSlotReg(0, 0, 0, 0x30, val);
+  
+  //  YM2612_write(0, 0x30);
+  //  YM2612_write(1, ((detune & 0x07) << 4) | (mult & 0x0F));
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
 int main() {
 
   vdp_init();
@@ -480,10 +593,6 @@ int main() {
 
   YM2612_reset(1);
 
-  //      Z80_requestBus(1);
-  //      play_sine_wave();
-  //      Z80_releaseBus();
-  
   vdp_tiles_load(blankTile, 100, 1);
   vdp_tiles_load(fillTile, 101, 1);
   vdp_tiles_load(gradTile, 102, 1);
@@ -501,9 +610,12 @@ int main() {
     // check if down was pressed
     if (player1_state.down) {
       if (!downpressed) {
-	//	if (screen == 0) {
+	if (screen == SCREEN_YM_INST) {
+	  ym_select_field++;
+	  if (ym_select_field >= YM_FIELD_COUNT) ym_select_field = YM_FIELD_COUNT - 1;
+	} else {
 	  selectstep = (selectstep + 1) % 16;
-	  //	}
+	}
 	downpressed = 1;
       }
     } else {
@@ -513,10 +625,13 @@ int main() {
     // check if up was pressed
     if (player1_state.up) {
       if (!uppressed) {
-	//	if (screen == 0) {
+	if (screen == SCREEN_YM_INST) {
+	  ym_select_field--;
+	  if (ym_select_field < 0) ym_select_field = 0;
+	} else {
 	  selectstep = selectstep - 1;
 	  if (selectstep < 0) selectstep = 15;
-	  //	}
+	}
 	uppressed = 1;	
       }
     } else {
@@ -526,7 +641,7 @@ int main() {
     // check if left was pressed
     if (player1_state.left) {
       if (!leftpressed) {
-	if (screen == 0) {
+	if (screen == SCREEN_PCM_SEQ) {
 	  if (column == 0) {
 	    gateseq[selectstep]--;
 	    if (gateseq[selectstep] < 0) gateseq[selectstep] = 0;
@@ -557,7 +672,7 @@ int main() {
 	    sprintf(s, "%02d", speedseq[selectstep]);
 	    vdp_puts(VDP_PLAN_A, s, 12, selectstep);      
 	  }
-	} else if (screen == 1) {
+	} else if (screen == SCREEN_PSG_SEQ) {
 	  
 	  psgNoteSeq[selectstep]--;
 	  
@@ -568,7 +683,7 @@ int main() {
 	  vdp_text_clear(VDP_PLAN_A, 6, selectstep, 2);
 	  sprintf(s, "%02d", psgNoteSeq[selectstep]);
 	  vdp_puts(VDP_PLAN_A, s, 6, selectstep);
-	} else if (screen == 2) {
+	} else if (screen == SCREEN_YM_SEQ) {
 
 	  ymNoteSeq[selectstep]--;
 	  
@@ -579,7 +694,22 @@ int main() {
 	  vdp_text_clear(VDP_PLAN_A, 6, selectstep, 2);
 	  sprintf(s, "%02d", ymNoteSeq[selectstep]);
 	  vdp_puts(VDP_PLAN_A, s, 6, selectstep);	  
+	} else if (screen == SCREEN_YM_INST) {
+	  if (ym_select_field == YM_FIELD_LFO_ENABLE) {
+	    ym_lfo_enable = !ym_lfo_enable;
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	  } else if (ym_select_field == YM_FIELD_LFO_SPEED) {
+	    if (ym_lfo_speed > 0)
+	      ym_lfo_speed--;
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
+	  } else if (ym_select_field == YM_FIELD_DETUNE) {
+	    if (ym_0_0_0_detune > 0) ym_0_0_0_detune--;
+	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);
+	  } else if (ym_select_field == YM_FIELD_MULT) {
+	    if (ym_0_0_0_mult > 0) ym_0_0_0_mult--;
+	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);	    
 	  }
+	}
 	leftpressed = 1;
       }
     } else {
@@ -589,7 +719,7 @@ int main() {
     // check if right was pressed
     if (player1_state.right) {
       if (!rightpressed) {
-	if (screen == 0) {
+	if (screen == SCREEN_PCM_SEQ) {
 	  if (column == 0) {
 
 	    gateseq[selectstep]++;
@@ -623,7 +753,7 @@ int main() {
 	    vdp_puts(VDP_PLAN_A, s, 12, selectstep);      
 	  
 	  }  
-	} else if (screen == 1) { // psg
+	} else if (screen == SCREEN_PSG_SEQ) { // psg
 
 	  psgNoteSeq[selectstep]++;
 	
@@ -632,7 +762,7 @@ int main() {
 	  vdp_text_clear(VDP_PLAN_A, 6, selectstep, 2);
 	  sprintf(s, "%02d", psgNoteSeq[selectstep]);
 	  vdp_puts(VDP_PLAN_A, s, 6, selectstep);      	  
-	} else if (screen == 2) {
+	} else if (screen == SCREEN_YM_SEQ) {
 	  
 	  ymNoteSeq[selectstep]++;
 	
@@ -640,8 +770,28 @@ int main() {
 
 	  vdp_text_clear(VDP_PLAN_A, 6, selectstep, 2);
 	  sprintf(s, "%02d", ymNoteSeq[selectstep]);
-	  vdp_puts(VDP_PLAN_A, s, 6, selectstep);      	  	  
+	  vdp_puts(VDP_PLAN_A, s, 6, selectstep);
+	  
+	} else if (screen == SCREEN_YM_INST) { // ym instrument screen
+	  
+	  if (ym_select_field == YM_FIELD_LFO_ENABLE) {
+	    ym_lfo_enable = !ym_lfo_enable;
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	  } else if (ym_select_field == YM_FIELD_LFO_SPEED) {
+	    ym_lfo_speed++;
+	    if (ym_lfo_speed > 7) ym_lfo_speed = 7;
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
+	  } else if (ym_select_field == YM_FIELD_DETUNE) {
+	    ym_0_0_0_detune++;
+	    if (ym_0_0_0_detune > 7) ym_0_0_0_detune = 7;
+	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);
+	  } else if (ym_select_field == YM_FIELD_MULT) {
+	    ym_0_0_0_mult++;
+	    if (ym_0_0_0_mult > 0x0F) ym_0_0_0_mult = 0x0F;
+	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);	    
 	  }
+	}
+
 	rightpressed = 1;
       }
     } else {
@@ -651,7 +801,7 @@ int main() {
     // check if A was pressed
     if (player1_state.a) {
       if (!apressed) {
-	if (screen == 0) { // pcm
+	if (screen == SCREEN_PCM_SEQ) { // pcm
 	  column = (column + 1) % COLUMN_COUNT;
 	  if (column == 1) {
 	    vdp_text_clear(VDP_PLAN_A, 5, selectstep, 1);
@@ -709,13 +859,15 @@ int main() {
       playingCanChange = 1;
     }
     
-    if (screen == 0) {
+    if (screen == SCREEN_PCM_SEQ) {
       displayPCMScreen();
-    } else if (screen == 1) {
+    } else if (screen == SCREEN_PSG_SEQ) {
       displayPSGScreen();
-    } else if (screen == 2) {
+    } else if (screen == SCREEN_YM_SEQ) {
       displayYMScreen();
-      }
+    } else if (screen == SCREEN_YM_INST) {
+      displayYMInstScreen();
+    }
     oldscreen = screen;
 
     // check if we need to update the sequencer

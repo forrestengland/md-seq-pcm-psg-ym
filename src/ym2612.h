@@ -41,5 +41,7 @@ ym_pitch_t midi_to_ym2612(unsigned char midi_note);
 void ym_set_pitch_ch0(unsigned char midi_note);
 void noteon_chan0();
 void noteoff_chan0();
+void YM2612_writeSlotReg(uint16_t port, uint8_t ch, uint8_t sl,
+			 uint8_t reg, uint8_t value);
 
 #endif
