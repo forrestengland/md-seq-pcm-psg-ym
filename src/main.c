@@ -85,17 +85,21 @@ int ym_select_field_old = -1;
 #define YM_FIELD_DETUNE 2
 #define YM_FIELD_MULT 3
 #define YM_FIELD_LEVEL 4
-#define YM_FIELD_COUNT 5
+#define YM_FIELD_ATTACK 5
+#define YM_FIELD_COUNT 6
 uint8_t ym_lfo_enable = 0;
 uint8_t ym_lfo_enable_old = 255;
 uint8_t ym_lfo_speed = 0;
 uint8_t ym_lfo_speed_old = 255;
-uint8_t ym_0_0_0_detune = 0;
-uint8_t ym_0_0_0_detune_old = 0;
-uint8_t ym_0_0_0_mult = 1;
-uint8_t ym_0_0_0_mult_old = 1;
+uint8_t ym_detune = 0;
+uint8_t ym_detune_old = 0;
+uint8_t ym_mult = 1;
+uint8_t ym_mult_old = 1;
 uint8_t ym_level = 0;
 uint8_t ym_level_old = 255;
+uint8_t ym_attack = 0x1F;
+uint8_t ym_attack_old = 255;
+
 /* psg sequencer */
 int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
 
@@ -490,58 +494,75 @@ void displayYMInstScreen() {
     vdp_puts(VDP_PLAN_A, "YM INST", SCREEN_TILEW - 8, 0);
 
     vdp_puts(VDP_PLAN_A, "lfo enable:", 0, 0);
-    sprintf(s, "%d", ym_lfo_enable);
+    sprintf(s, "%03d", ym_lfo_enable);
     vdp_puts(VDP_PLAN_A, s, 12, 0);
 
     vdp_puts(VDP_PLAN_A, "lfo speed :", 0, 1);
-    sprintf(s, "%d", ym_lfo_speed);
+    sprintf(s, "%03d", ym_lfo_speed);
     vdp_puts(VDP_PLAN_A, s, 12, 1);
 
     vdp_puts(VDP_PLAN_A, "detune    :", 0, 2);
-    sprintf(s, "%d", ym_0_0_0_detune);
+    sprintf(s, "%03d", ym_detune);
     vdp_puts(VDP_PLAN_A, s, 12, 2);
 
-    vdp_puts(VDP_PLAN_A, "mult     :", 0, 3);
-    sprintf(s, "%d", ym_0_0_0_mult);
+    vdp_puts(VDP_PLAN_A, "mult      :", 0, 3);
+    sprintf(s, "%03d", ym_mult);
     vdp_puts(VDP_PLAN_A, s, 12, 3);    
 
+    vdp_puts(VDP_PLAN_A, "level     :", 0, 4);
+    sprintf(s, "%03d", ym_level);
+    vdp_puts(VDP_PLAN_A, s, 12, 4);    
+
+    vdp_puts(VDP_PLAN_A, "attack    :", 0, 5);
+    sprintf(s, "%03d", ym_attack);
+    vdp_puts(VDP_PLAN_A, s, 12, 5);    
+
     vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
-    vdp_puts(VDP_PLAN_A, "<", 13, ym_select_field);
+    vdp_puts(VDP_PLAN_A, "<", 15, ym_select_field);
     
   } else {
     if (ym_select_field != ym_select_field_old) {
       if (ym_select_field_old > -1) { // set to -1 on startup, otherwise erase old cursor pos
 	vdp_puts(VDP_PLAN_A, " ", 11, ym_select_field_old);
-	vdp_puts(VDP_PLAN_A, " ", 13, ym_select_field_old);
+	vdp_puts(VDP_PLAN_A, " ", 15, ym_select_field_old);
       }
       vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
-      vdp_puts(VDP_PLAN_A, "<", 13, ym_select_field);
+      vdp_puts(VDP_PLAN_A, "<", 15, ym_select_field);
       ym_select_field_old = ym_select_field;
     }
     if (ym_lfo_enable != ym_lfo_enable_old) {
-      sprintf(s, "%d", ym_lfo_enable);
+      sprintf(s, "%03d", ym_lfo_enable);
       vdp_puts(VDP_PLAN_A, s, 12, 0);
       ym_lfo_enable_old = ym_lfo_enable;
     }
     if (ym_lfo_speed != ym_lfo_speed_old) {
-      sprintf(s, "%d", ym_lfo_speed);
+      sprintf(s, "%03d", ym_lfo_speed);
       vdp_puts(VDP_PLAN_A, s, 12, 1);
       ym_lfo_speed_old = ym_lfo_speed;
     }
-    if (ym_0_0_0_detune != ym_0_0_0_detune_old) {
+    if (ym_detune != ym_detune_old) {
       vdp_puts(VDP_PLAN_A, "detune    :", 0, 2);
-      sprintf(s, "%d", ym_0_0_0_detune);
+      sprintf(s, "%03d", ym_detune);
       vdp_puts(VDP_PLAN_A, s, 12, 2);
-      ym_0_0_0_detune_old = ym_0_0_0_detune;
+      ym_detune_old = ym_detune;
     }
-    if (ym_0_0_0_mult != ym_0_0_0_mult_old) {
+    if (ym_mult != ym_mult_old) {
       vdp_puts(VDP_PLAN_A, "mult      :", 0, 3);
-      sprintf(s, "%d", ym_0_0_0_mult);
+      sprintf(s, "%03d", ym_mult);
       vdp_puts(VDP_PLAN_A, s, 12, 3);
-      ym_0_0_0_mult_old = ym_0_0_0_mult;
-    }    
+      ym_mult_old = ym_mult;
+    }
+    if (ym_level != ym_level_old) {
+      vdp_puts(VDP_PLAN_A, "level     :", 0, 4);
+      sprintf(s, "%03d", ym_level);
+      vdp_puts(VDP_PLAN_A, s, 12, 4);          
+    }
+    if (ym_attack != ym_attack_old) {
+      vdp_puts(VDP_PLAN_A, "attack    :", 0, 5);
+      sprintf(s, "%03d", ym_attack);
+      vdp_puts(VDP_PLAN_A, s, 12, 5);    
+    }
   }
-
 }
 
 void set_ym_lfo(uint8_t enable, uint8_t speed) {
@@ -554,14 +575,24 @@ void set_ym_lfo(uint8_t enable, uint8_t speed) {
 
 void set_ym_detune_mult(uint8_t detune, uint8_t mult) {
   Z80_requestBus(1);
-  // DT1 - MUL
   uint8_t val = ((detune & 0x07) << 4) | (mult & 0x0F);
   ym_write(0, 0x3C, val); // DT1/Multi: Multiplier 1 ch0 op4
-  //  ym_write(0, 0x38, 0x52); // DT1/Multi: (bits 7-5 detune) (bits 4-1 multiplier) ch0 op3  
-  //  YM2612_writeSlotReg(0, 0, 0, 0x30, val);
-  
-  //  YM2612_write(0, 0x30);
-  //  YM2612_write(1, ((detune & 0x07) << 4) | (mult & 0x0F));
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_level(uint8_t level) {
+  Z80_requestBus(1);
+  uint8_t val = level & 0x7F;
+  ym_write(0, 0x4C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_attack(uint8_t attack) {
+  Z80_requestBus(1);
+  uint8_t val = attack & 0x1F;
+  ym_write(0, 0x5C, val); // DT1/Multi: Multiplier 1 ch0 op4
   YM2612_latchDacDataReg();
   Z80_releaseBus();  
 }
@@ -703,11 +734,17 @@ int main() {
 	      ym_lfo_speed--;
 	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
 	  } else if (ym_select_field == YM_FIELD_DETUNE) {
-	    if (ym_0_0_0_detune > 0) ym_0_0_0_detune--;
-	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);
+	    if (ym_detune > 0) ym_detune--;
+	    set_ym_detune_mult(ym_detune, ym_mult);
 	  } else if (ym_select_field == YM_FIELD_MULT) {
-	    if (ym_0_0_0_mult > 0) ym_0_0_0_mult--;
-	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);	    
+	    if (ym_mult > 0) ym_mult--;
+	    set_ym_detune_mult(ym_detune, ym_mult);	    
+	  } else if (ym_select_field == YM_FIELD_LEVEL) {
+	    if (ym_level > 0) ym_level--;
+	    set_ym_level(ym_level);
+	  } else if (ym_select_field == YM_FIELD_ATTACK) {
+	    if (ym_attack > 0) ym_attack--;
+	    set_ym_attack(ym_attack);
 	  }
 	}
 	leftpressed = 1;
@@ -782,13 +819,19 @@ int main() {
 	    if (ym_lfo_speed > 7) ym_lfo_speed = 7;
 	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
 	  } else if (ym_select_field == YM_FIELD_DETUNE) {
-	    ym_0_0_0_detune++;
-	    if (ym_0_0_0_detune > 7) ym_0_0_0_detune = 7;
-	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);
+	    ym_detune++;
+	    if (ym_detune > 7) ym_detune = 7;
+	    set_ym_detune_mult(ym_detune, ym_mult);
 	  } else if (ym_select_field == YM_FIELD_MULT) {
-	    ym_0_0_0_mult++;
-	    if (ym_0_0_0_mult > 0x0F) ym_0_0_0_mult = 0x0F;
-	    set_ym_detune_mult(ym_0_0_0_detune, ym_0_0_0_mult);	    
+	    ym_mult++;
+	    if (ym_mult > 0x0F) ym_mult = 0x0F;
+	    set_ym_detune_mult(ym_detune, ym_mult);	    
+	  } else if (ym_select_field == YM_FIELD_LEVEL) {
+	    if (ym_level < 0x7F) ym_level++;
+	    set_ym_level(ym_level);
+	  } else if (ym_select_field == YM_FIELD_ATTACK) {
+	    if (ym_attack < 0x1F) ym_attack++;
+	    set_ym_attack(ym_attack);
 	  }
 	}
 
@@ -922,10 +965,10 @@ int main() {
 	  YM2612_latchDacDataReg();
 	  Z80_releaseBus();
 	} else {
-	  Z80_requestBus(1);
-	  noteoff_chan0();
-	  YM2612_latchDacDataReg();
-	  Z80_releaseBus();
+	  //	  Z80_requestBus(1);
+	  //	  noteoff_chan0();
+	  //	  YM2612_latchDacDataReg();
+	  //	  Z80_releaseBus();
 	}
 
 	/* pcm sequencer */
