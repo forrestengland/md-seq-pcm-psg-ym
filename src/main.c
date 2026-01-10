@@ -87,7 +87,8 @@ int ym_select_field_old = -1;
 #define YM_FIELD_MULT 3
 #define YM_FIELD_LEVEL 4
 #define YM_FIELD_ATTACK 5
-#define YM_FIELD_COUNT 6
+#define YM_FIELD_RELEASE 6
+#define YM_FIELD_COUNT 7
 uint8_t ym_lfo_enable = 0;
 uint8_t ym_lfo_enable_old = 255;
 uint8_t ym_lfo_speed = 0;
@@ -100,6 +101,10 @@ uint8_t ym_level = 0;
 uint8_t ym_level_old = 255;
 uint8_t ym_attack = 0x1F;
 uint8_t ym_attack_old = 255;
+uint8_t ym_release = 0xF;
+uint8_t ym_release_old = 255;
+uint8_t ym_sustain = 0;
+uint8_t ym_sustain_old = 255;
 
 /* psg sequencer */
 int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
@@ -122,7 +127,7 @@ typedef struct {
   uint8_t accent[16];
   uint8_t speed[16];
   uint8_t psgnote[16];
-  uint8_t ymNoteCh0[16];
+  int8_t ymNoteCh0[16];
   uint8_t  checksum;      // Simple checksum for data integrity - (ignored here)
   uint8_t  padding;       // Padding to ensure alignment if needed, although 8-bit access is standard
 } GameSaveData;
@@ -305,7 +310,7 @@ void set_dacSpeed(uint8_t speed) {
   Z80_releaseBus();  
 }
 
-void set_amen_bank() {
+void set_kit_bank() {
   Z80_requestBus(1);
 //  uint32_t pcmaddr = (uint32_t)amen_unsigned_raw;
   uint32_t pcmaddr = (uint32_t)rx21kit_raw;
@@ -519,6 +524,10 @@ void displayYMInstScreen() {
     sprintf(s, "%03d", ym_attack);
     vdp_puts(VDP_PLAN_A, s, 12, 5);    
 
+    vdp_puts(VDP_PLAN_A, "release   :", 0, 6);
+    sprintf(s, "%03d", ym_release);
+    vdp_puts(VDP_PLAN_A, s, 12, 6);    
+    
     vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
     vdp_puts(VDP_PLAN_A, "<", 15, ym_select_field);
     
@@ -564,6 +573,11 @@ void displayYMInstScreen() {
       sprintf(s, "%03d", ym_attack);
       vdp_puts(VDP_PLAN_A, s, 12, 5);    
     }
+    if (ym_release != ym_release_old) {
+      vdp_puts(VDP_PLAN_A, "release   :", 0, 6);
+      sprintf(s, "%03d", ym_release);
+      vdp_puts(VDP_PLAN_A, s, 12, 6);    
+    }    
   }
 }
 
@@ -599,6 +613,14 @@ void set_ym_attack(uint8_t attack) {
   Z80_releaseBus();  
 }
 
+void set_ym_release_sustain(uint8_t release, uint8_t sustain) { // sustain - 0 is max, 15 is none
+  Z80_requestBus(1);
+  uint8_t val = ((sustain & 0xF) << 4) | (release & 0xF);
+  ym_write(0, 0x8C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
 int main() {
 
   vdp_init();
@@ -622,7 +644,7 @@ int main() {
 
   savegame_init();
 
-  set_amen_bank(); // let z80 access our pcm data
+  set_kit_bank(); // let z80 access our pcm data
 
   YM2612_reset(1);
 
@@ -747,6 +769,9 @@ int main() {
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack > 0) ym_attack--;
 	    set_ym_attack(ym_attack);
+	  } else if (ym_select_field == YM_FIELD_RELEASE) {
+	    if (ym_attack > 0) ym_release--;
+	    set_ym_release_sustain(ym_release, ym_sustain);
 	  }
 	}
 	leftpressed = 1;
@@ -834,6 +859,9 @@ int main() {
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack < 0x1F) ym_attack++;
 	    set_ym_attack(ym_attack);
+	  } else if (ym_select_field == YM_FIELD_RELEASE) {
+	    if (ym_release < 0xF) ym_release++;
+	    set_ym_release_sustain(ym_release, ym_sustain);
 	  }
 	}
 
