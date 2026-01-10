@@ -2,7 +2,8 @@
 #include "z80.h"
 #include "controller.h"
 #include "z80driver.h"
-#include "amen_unsigned.h"
+//#include "amen_unsigned.h"
+#include "rx21kit.h"
 #include "psg.h"
 #include "ym2612.h"
 
@@ -53,7 +54,7 @@ const uint32_t gradTile[8] = {
 #define accent_addr 0x00FE // a 0 here will be half as loud, 1 is loudest
 #define speed_addr 0x0FD // a lower number will give a faster playback rate
 #define outputValue_addr 0x0105
-#define sampleMax 2 // maximum sample index for our sequencer - sample / chop count,
+#define sampleMax 9 // maximum sample index for our sequencer - sample / chop count,
                     // used by the 68000 to set the bank, start address and length
 
 /* sequencer stuff */
@@ -306,7 +307,8 @@ void set_dacSpeed(uint8_t speed) {
 
 void set_amen_bank() {
   Z80_requestBus(1);
-  uint32_t pcmaddr = (uint32_t)amen_unsigned_raw;
+//  uint32_t pcmaddr = (uint32_t)amen_unsigned_raw;
+  uint32_t pcmaddr = (uint32_t)rx21kit_raw;
   uint16_t bank = pcmaddr >> 15;
   Z80_setBank(bank);
   Z80_releaseBus();
@@ -981,12 +983,33 @@ int main() {
 	  } else {
 	    set_accent(0);
 	  }
-	  if (gateseq[seqpos] == 1) { // play sample 1 (whole break)
+	  if (gateseq[seqpos] == 1) { // play sample 1 - clap
 	    set_sample_start(0);
-	    set_sample_length(amen_unsigned_raw_len);
-	  } else if (gateseq[seqpos] == 2) { // play sample 2 (second half of break)
-	    set_sample_start(amen_unsigned_raw_len / 2 - 1);
-	    set_sample_length(amen_unsigned_raw_len / 2);
+	    set_sample_length(659);
+	  } else if (gateseq[seqpos] == 2) { // play sample 2 - cymbal
+	    set_sample_start(659);
+	    set_sample_length(7761);
+	  } else if (gateseq[seqpos] == 3) { // play sample 3 - hat closed
+	    set_sample_start(659+7761);
+	    set_sample_length(863);
+	  } else if (gateseq[seqpos] == 4) { // play sample 4 - hat open
+	    set_sample_start(659+7761+863);
+	    set_sample_length(4299);
+	  } else if (gateseq[seqpos] == 5) { // play sample 5 - kick
+	    set_sample_start(659+7761+863+4299);
+	    set_sample_length(662);
+	  } else if (gateseq[seqpos] == 6) { // play sample 6 - snare
+	    set_sample_start(659+7761+863+4299+662);
+	    set_sample_length(1058);
+	  } else if (gateseq[seqpos] == 7) { // play sample 7 - tom high
+	    set_sample_start(659+7761+863+4299+662+1058);
+	    set_sample_length(1585);
+	  } else if (gateseq[seqpos] == 8) { // play sample 8 - tom low
+	    set_sample_start(659+7761+863+4299+662+1058+1585);
+	    set_sample_length(1585);
+	  } else if (gateseq[seqpos] == 9) { // play sample 9 - tom mid
+	    set_sample_start(659+7761+863+4299+662+1058+1585+1585);
+	    set_sample_length(1607);
 	  }
 	  set_dacSpeed(speedseq[seqpos]); // set the playback speed
 	  play_sample();
