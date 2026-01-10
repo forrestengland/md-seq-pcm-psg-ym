@@ -720,7 +720,7 @@ int main() {
 
 	  ymNoteSeq[selectstep]--;
 	  
-	  if (ymNoteSeq[selectstep] < 0) ymNoteSeq[selectstep] = 0;
+	  if (ymNoteSeq[selectstep] < -1) ymNoteSeq[selectstep] = -1;
 	
 	  savegame();
 
@@ -959,18 +959,18 @@ int main() {
 	}
 
 	/* ym sequencer */	
-	if (ymNoteSeq[seqpos]) {
+	if (ymNoteSeq[seqpos] > 0) {
 	  Z80_requestBus(1);
 	  noteoff_chan0();
 	  ym_set_pitch_ch0(ymNoteSeq[seqpos]);
 	  noteon_chan0();
 	  YM2612_latchDacDataReg();
 	  Z80_releaseBus();
-	} else {
-	  //	  Z80_requestBus(1);
-	  //	  noteoff_chan0();
-	  //	  YM2612_latchDacDataReg();
-	  //	  Z80_releaseBus();
+	} else if (ymNoteSeq[seqpos] == -1) {
+	  Z80_requestBus(1);
+	  noteoff_chan0();
+	  YM2612_latchDacDataReg();
+	  Z80_releaseBus();
 	}
 
 	/* pcm sequencer */
