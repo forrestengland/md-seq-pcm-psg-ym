@@ -1,9 +1,8 @@
 #include "md.h"
 #include "z80.h"
 #include "controller.h"
-#include "z80driver.h"
-//#include "amen_unsigned.h"
-#include "rx21kit.h"
+#include "z80driver.h" // z80 driver
+#include "rx21kit.h" // sound samples
 #include "psg.h"
 #include "ym2612.h"
 
@@ -63,7 +62,9 @@ int gateseq[16] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 int accseq[16] = {1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0}; // accent sequence
 int speedseq[16] = {20,21,22,30,29,28,10,12,14,15,13,11,9,8,7,6}; // playback speed sequence
 int seqpos = 0; // current playback sequence position
-int framemod = 11; // how many frames to wait before the next sequencer step
+//int framemod = 11; // how many frames to wait before the next sequencer step
+int tempo = 11;
+int tempo_old = -1;
 
 /* gui stuff */
 int column = 0; // editing column
@@ -71,11 +72,12 @@ int oldcolumn = 0; // last editing column to check for A button press change
 #define COLUMN_COUNT 3 // number of columns
 int screen = 0; // whether we're viewing the pcm or psg screen
 int oldscreen = -1;
-#define SCREEN_COUNT 4 // number of different screens to switch through by pressing the B button
+#define SCREEN_COUNT 5 // number of different screens to switch through by pressing the B button
 #define SCREEN_PCM_SEQ 0
 #define SCREEN_PSG_SEQ 1
 #define SCREEN_YM_SEQ 2
 #define SCREEN_YM_INST 3
+#define SCREEN_PROJECT 4
 int playing = 0; // whether to advance the sequencer
 int playingCanChange = 1;
 /* ym inst gui */
@@ -112,6 +114,47 @@ int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed
 /* ym sequencer */
 int ymNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
 
+
+void set_ym_lfo(uint8_t enable, uint8_t speed) {
+  Z80_requestBus(1);
+  YM2612_write(0, 0x22);
+  YM2612_write(1, (enable << 3) | (speed & 0x07));
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_detune_mult(uint8_t detune, uint8_t mult) {
+  Z80_requestBus(1);
+  uint8_t val = ((detune & 0x07) << 4) | (mult & 0x0F);
+  ym_write(0, 0x3C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_level(uint8_t level) {
+  Z80_requestBus(1);
+  uint8_t val = level & 0x7F;
+  ym_write(0, 0x4C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_attack(uint8_t attack) {
+  Z80_requestBus(1);
+  uint8_t val = attack & 0x1F;
+  ym_write(0, 0x5C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
+void set_ym_release_sustain(uint8_t release, uint8_t sustain) { // sustain - 0 is max, 15 is none
+  Z80_requestBus(1);
+  uint8_t val = ((sustain & 0xF) << 4) | (release & 0xF);
+  ym_write(0, 0x8C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();  
+}
+
 /* savegame stuff */
 // Define key SRAM memory addresses as volatile pointers
 // Volatile is crucial as the hardware might change values outside the C program's control
@@ -123,13 +166,26 @@ int ymNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed 
 // Define a simple structure for game save data
 typedef struct {
   uint16_t magic;
+
+  uint8_t tempo;
+  uint8_t ym_attack;
+  uint8_t ym_lfo_enable;
+  uint8_t ym_lfo_speed;
+  uint8_t ym_detune;
+  uint8_t ym_mult;
+  uint8_t ym_level;
+  uint8_t ym_release;
+  uint8_t ym_sustain;  
+  
   uint8_t sequence[16];
   uint8_t accent[16];
   uint8_t speed[16];
   uint8_t psgnote[16];
   int8_t ymNoteCh0[16];
+  
   uint8_t  checksum;      // Simple checksum for data integrity - (ignored here)
   uint8_t  padding;       // Padding to ensure alignment if needed, although 8-bit access is standard
+  
 } GameSaveData;
 
 GameSaveData mySave; // our data to save/load
@@ -224,6 +280,16 @@ void savegame_init(void) {
     if (load_game_from_sram(&mySave)) {
         // Data loaded successfully, continue game
         // ... use mySave.player_score, etc.
+      tempo = mySave.tempo;
+      ym_attack = mySave.ym_attack;
+      ym_lfo_enable = mySave.ym_lfo_enable;
+      ym_lfo_speed = mySave.ym_lfo_speed;
+      ym_detune = mySave.ym_detune;
+      ym_mult = mySave.ym_mult;
+      ym_level = mySave.ym_level;
+      ym_release = mySave.ym_release;
+      ym_sustain = mySave.ym_sustain;	      
+      
       for (int i=0; i<16; i++) {
 	gateseq[i] = mySave.sequence[i];
 	accseq[i] = mySave.accent[i];
@@ -231,18 +297,38 @@ void savegame_init(void) {
 	psgNoteSeq[i] = mySave.psgnote[i];
 	ymNoteSeq[i] = mySave.ymNoteCh0[i];
       }
+
+      // send the saved settings to the ym chip
+      set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+      set_ym_detune_mult(ym_detune, ym_mult);
+      set_ym_level(ym_level);
+      set_ym_attack(ym_attack);
+      set_ym_release_sustain(ym_release, ym_sustain);
+      
       vdp_text_clear(VDP_PLAN_A, 3, 18, 40);
       vdp_puts(VDP_PLAN_A, "saved sequence loaded", 3, 18);
     } else {
         // No valid save data found, start a new game and initialize structure
         mySave.magic = 0xABCE; // Set magic number
+
+	mySave.tempo = tempo;
+	mySave.ym_attack = ym_attack;
+	mySave.ym_lfo_enable = ym_lfo_enable;
+	mySave.ym_lfo_speed = ym_lfo_speed;
+	mySave.ym_detune = ym_detune;
+	mySave.ym_mult = ym_mult;
+	mySave.ym_level = ym_level;
+	mySave.ym_release = ym_release;
+	mySave.ym_sustain = ym_sustain;		
+	
 	for (int i=0; i<16; i++) {
 	  mySave.sequence[i] = gateseq[i];
 	  mySave.sequence[i] = accseq[i];
 	  mySave.speed[i] = speedseq[i];
 	  mySave.psgnote[i] = psgNoteSeq[i];
-	  mySave.ymNoteCh0[i] = ymNoteSeq[i];
+	  mySave.ymNoteCh0[i] = ymNoteSeq[i];	  
 	}
+	
         // Calculate and set initial checksum
         mySave.checksum = calculate_checksum(&mySave); 
         // Save the initial data to SRAM immediately
@@ -252,13 +338,24 @@ void savegame_init(void) {
 
 void savegame() {
 
+  mySave.tempo = tempo;
+  mySave.ym_attack = ym_attack;
+  mySave.ym_lfo_enable = ym_lfo_enable;
+  mySave.ym_lfo_speed = ym_lfo_speed;
+  mySave.ym_detune = ym_detune;
+  mySave.ym_mult = ym_mult;
+  mySave.ym_level = ym_level;
+  mySave.ym_release = ym_release;
+  mySave.ym_sustain = ym_sustain;  
+
   for (int i=0; i<16; i++) {
     mySave.sequence[i] = gateseq[i];
     mySave.accent[i] = accseq[i];
     mySave.speed[i] = speedseq[i];
     mySave.psgnote[i] = psgNoteSeq[i];
-    mySave.ymNoteCh0[i] = ymNoteSeq[i];
+    mySave.ymNoteCh0[i] = ymNoteSeq[i];    
   }
+  
   mySave.checksum = calculate_checksum(&mySave); // Update checksum before saving
   save_game_to_sram(&mySave);
   vdp_text_clear(VDP_PLAN_A, 3, 18, 40);
@@ -566,59 +663,44 @@ void displayYMInstScreen() {
     if (ym_level != ym_level_old) {
       vdp_puts(VDP_PLAN_A, "level     :", 0, 4);
       sprintf(s, "%03d", ym_level);
-      vdp_puts(VDP_PLAN_A, s, 12, 4);          
+      vdp_puts(VDP_PLAN_A, s, 12, 4);
+      ym_level_old = ym_level;
     }
     if (ym_attack != ym_attack_old) {
       vdp_puts(VDP_PLAN_A, "attack    :", 0, 5);
       sprintf(s, "%03d", ym_attack);
-      vdp_puts(VDP_PLAN_A, s, 12, 5);    
+      vdp_puts(VDP_PLAN_A, s, 12, 5);
+      ym_attack_old = ym_attack;
     }
     if (ym_release != ym_release_old) {
       vdp_puts(VDP_PLAN_A, "release   :", 0, 6);
       sprintf(s, "%03d", ym_release);
-      vdp_puts(VDP_PLAN_A, s, 12, 6);    
+      vdp_puts(VDP_PLAN_A, s, 12, 6);
+      ym_release_old = ym_release;
     }    
   }
 }
 
-void set_ym_lfo(uint8_t enable, uint8_t speed) {
-  Z80_requestBus(1);
-  YM2612_write(0, 0x22);
-  YM2612_write(1, (enable << 3) | (speed & 0x07));
-  YM2612_latchDacDataReg();
-  Z80_releaseBus();  
-}
+void displayProjectScreen() {
 
-void set_ym_detune_mult(uint8_t detune, uint8_t mult) {
-  Z80_requestBus(1);
-  uint8_t val = ((detune & 0x07) << 4) | (mult & 0x0F);
-  ym_write(0, 0x3C, val); // DT1/Multi: Multiplier 1 ch0 op4
-  YM2612_latchDacDataReg();
-  Z80_releaseBus();  
-}
+  char s[255];
+  
+  if (screen != oldscreen) {
 
-void set_ym_level(uint8_t level) {
-  Z80_requestBus(1);
-  uint8_t val = level & 0x7F;
-  ym_write(0, 0x4C, val); // DT1/Multi: Multiplier 1 ch0 op4
-  YM2612_latchDacDataReg();
-  Z80_releaseBus();  
-}
+    clearScreen();
+    vdp_puts(VDP_PLAN_A, "PROJECT", SCREEN_TILEW - 8, 0);
 
-void set_ym_attack(uint8_t attack) {
-  Z80_requestBus(1);
-  uint8_t val = attack & 0x1F;
-  ym_write(0, 0x5C, val); // DT1/Multi: Multiplier 1 ch0 op4
-  YM2612_latchDacDataReg();
-  Z80_releaseBus();  
-}
+    vdp_puts(VDP_PLAN_A, "tempo:", 0, 0);
+    sprintf(s, "%03d", tempo);
+    vdp_puts(VDP_PLAN_A, s, 12, 0);
 
-void set_ym_release_sustain(uint8_t release, uint8_t sustain) { // sustain - 0 is max, 15 is none
-  Z80_requestBus(1);
-  uint8_t val = ((sustain & 0xF) << 4) | (release & 0xF);
-  ym_write(0, 0x8C, val); // DT1/Multi: Multiplier 1 ch0 op4
-  YM2612_latchDacDataReg();
-  Z80_releaseBus();  
+  } else {
+    if (tempo != tempo_old) {
+      sprintf(s, "%03d", tempo);
+      vdp_puts(VDP_PLAN_A, s, 12, 0);
+      tempo_old = tempo;
+    }
+  }
 }
 
 int main() {
@@ -638,15 +720,13 @@ int main() {
   vdp_color(5, 0x080);
   vdp_color(6, 0x0A0);
 
-  Z80_init();
-  
+  Z80_init();  
   Z80_loadDriverInternal(z80driver_bin, z80driver_bin_len);
-
-  savegame_init();
-
   set_kit_bank(); // let z80 access our pcm data
 
   YM2612_reset(1);
+
+  savegame_init(); // after resetting ym2612  
 
   vdp_tiles_load(blankTile, 100, 1);
   vdp_tiles_load(fillTile, 101, 1);
@@ -753,25 +833,37 @@ int main() {
 	  if (ym_select_field == YM_FIELD_LFO_ENABLE) {
 	    ym_lfo_enable = !ym_lfo_enable;
 	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_LFO_SPEED) {
 	    if (ym_lfo_speed > 0)
 	      ym_lfo_speed--;
-	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_DETUNE) {
 	    if (ym_detune > 0) ym_detune--;
 	    set_ym_detune_mult(ym_detune, ym_mult);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_MULT) {
 	    if (ym_mult > 0) ym_mult--;
-	    set_ym_detune_mult(ym_detune, ym_mult);	    
+	    set_ym_detune_mult(ym_detune, ym_mult);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_LEVEL) {
 	    if (ym_level > 0) ym_level--;
 	    set_ym_level(ym_level);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack > 0) ym_attack--;
 	    set_ym_attack(ym_attack);
+	    savegame();
 	  } else if (ym_select_field == YM_FIELD_RELEASE) {
 	    if (ym_attack > 0) ym_release--;
 	    set_ym_release_sustain(ym_release, ym_sustain);
+	    savegame();
+	  }
+	} else if (screen == SCREEN_PROJECT) {
+	  if (tempo > 1) {
+	    tempo--;
+	    savegame();
 	  }
 	}
 	leftpressed = 1;
@@ -841,27 +933,39 @@ int main() {
 	  if (ym_select_field == YM_FIELD_LFO_ENABLE) {
 	    ym_lfo_enable = !ym_lfo_enable;
 	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_LFO_SPEED) {
 	    ym_lfo_speed++;
 	    if (ym_lfo_speed > 7) ym_lfo_speed = 7;
-	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);	    
+	    set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_DETUNE) {
 	    ym_detune++;
 	    if (ym_detune > 7) ym_detune = 7;
 	    set_ym_detune_mult(ym_detune, ym_mult);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_MULT) {
 	    ym_mult++;
 	    if (ym_mult > 0x0F) ym_mult = 0x0F;
-	    set_ym_detune_mult(ym_detune, ym_mult);	    
+	    set_ym_detune_mult(ym_detune, ym_mult);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_LEVEL) {
 	    if (ym_level < 0x7F) ym_level++;
 	    set_ym_level(ym_level);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack < 0x1F) ym_attack++;
 	    set_ym_attack(ym_attack);
+	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_RELEASE) {
 	    if (ym_release < 0xF) ym_release++;
 	    set_ym_release_sustain(ym_release, ym_sustain);
+	    savegame();	    
+	  }
+	} else if (screen == SCREEN_PROJECT) {
+	  if (tempo < 255) {
+	    tempo++;
+	    savegame();	    
 	  }
 	}
 
@@ -940,11 +1044,14 @@ int main() {
       displayYMScreen();
     } else if (screen == SCREEN_YM_INST) {
       displayYMInstScreen();
+    } else if (screen == SCREEN_PROJECT) {
+      displayProjectScreen();
     }
     oldscreen = screen;
 
     // check if we need to update the sequencer
-    if (frame % framemod == 0) {
+    //    if (frame % framemod == 0) {
+    if (frame % tempo == 0) {    
 
       if (playing) {
 
