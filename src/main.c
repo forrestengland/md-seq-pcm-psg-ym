@@ -98,7 +98,12 @@ int ym_select_field_old = -1;
 #define YM_FIELD_PAN 12
 #define YM_FIELD_AMS 13
 #define YM_FIELD_FMS 14
-#define YM_FIELD_COUNT 15
+#define YM_FIELD_OP 15
+#define YM_FIELD_CHAN 16
+#define YM_FIELD_COUNT 17
+#define YM_OP_COUNT 4
+#define YM_CHAN_COUNT 6
+#define YM_OP_CHAN_COUNT (YM_OP_COUNT*YM_CHAN_COUNT)
 uint8_t ym_lfo_enable = 0;
 uint8_t ym_lfo_enable_old = 255;
 uint8_t ym_lfo_speed = 0;
@@ -107,7 +112,7 @@ uint8_t ym_detune = 0;
 uint8_t ym_detune_old = 0;
 uint8_t ym_mult = 1;
 uint8_t ym_mult_old = 1;
-uint8_t ym_level = 0;
+uint8_t ym_level[YM_OP_CHAN_COUNT] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 uint8_t ym_level_old = 255;
 uint8_t ym_attack = 0x1F;
 uint8_t ym_attack_old = 255;
@@ -129,6 +134,10 @@ uint8_t ym_ams = 0;
 uint8_t ym_ams_old = 255;
 uint8_t ym_fms = 0;
 uint8_t ym_fms_old = 255;
+uint8_t ym_op = 3;
+uint8_t ym_op_old = 0;
+uint8_t ym_chan = 0;
+uint8_t ym_chan_old = 5;
 
 /* psg sequencer */
 int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
@@ -153,10 +162,125 @@ void set_ym_detune_mult(uint8_t detune, uint8_t mult) {
   Z80_releaseBus();  
 }
 
-void set_ym_level(uint8_t level) {
+void set_ym_level(uint8_t channel, uint8_t operator, uint8_t level) {
+
   Z80_requestBus(1);
+
   uint8_t val = level & 0x7F;
-  ym_write(0, 0x4C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  
+  switch (channel) {
+  case 0:
+    switch (operator) {
+    case 0:
+      ym_write(0, 0x40, val);
+      break;
+    case 1:
+      ym_write(0, 0x48, val);
+      break;
+    case 2:
+      ym_write(0, 0x44, val);
+      break;
+    case 3:
+      ym_write(0, 0x4C, val);
+      break;
+    default:
+      break;
+    }
+    break;
+  case 1:
+    switch (operator) {
+    case 0:
+      ym_write(0, 0x41, val);
+      break;
+    case 1:
+      ym_write(0, 0x49, val);
+      break;
+    case 2:
+      ym_write(0, 0x45, val);
+      break;
+    case 3:
+      ym_write(0, 0x4D, val);
+      break;
+    default:
+      break;
+    }    
+    break;
+  case 2:
+    switch (operator) {
+    case 0:
+      ym_write(0, 0x42, val);
+      break;
+    case 1:
+      ym_write(0, 0x4A, val);
+      break;
+    case 2:
+      ym_write(0, 0x46, val);
+      break;
+    case 3:
+      ym_write(0, 0x4E, val);
+      break;
+    default:
+      break;
+    }        
+    break;
+  case 3:
+    switch (operator) {
+    case 0:
+      ym_write(1, 0x40, val);
+      break;
+    case 1:
+      ym_write(1, 0x48, val);
+      break;
+    case 2:
+      ym_write(1, 0x44, val);
+      break;
+    case 3:
+      ym_write(1, 0x4C, val);
+      break;
+    default:
+      break;
+    }    
+    break;
+  case 4:
+    switch (operator) {
+    case 0:
+      ym_write(1, 0x41, val);
+      break;
+    case 1:
+      ym_write(1, 0x49, val);
+      break;
+    case 2:
+      ym_write(1, 0x45, val);
+      break;
+    case 3:
+      ym_write(1, 0x4D, val);
+      break;
+    default:
+      break;
+    }        
+    break;
+  case 5:
+    switch (operator) {
+    case 0:
+      ym_write(1, 0x42, val);
+      break;
+    case 1:
+      ym_write(1, 0x4A, val);
+      break;
+    case 2:
+      ym_write(1, 0x46, val);
+      break;
+    case 3:
+      ym_write(1, 0x4E, val);
+      break;
+    default:
+      break;
+    }            
+    break;
+  default:
+    break;
+  }
+
   YM2612_latchDacDataReg();
   Z80_releaseBus();  
 }
@@ -164,7 +288,7 @@ void set_ym_level(uint8_t level) {
 void set_ym_attack(uint8_t attack) {
   Z80_requestBus(1);
   uint8_t val = attack & 0x1F;
-  ym_write(0, 0x5C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  ym_write(0, 0x5C, val);
   YM2612_latchDacDataReg();
   Z80_releaseBus();  
 }
@@ -172,7 +296,7 @@ void set_ym_attack(uint8_t attack) {
 void set_ym_release_sustain(uint8_t release, uint8_t sustain) { // sustain - 0 is max, 15 is none
   Z80_requestBus(1);
   uint8_t val = ((sustain & 0xF) << 4) | (release & 0xF);
-  ym_write(0, 0x8C, val); // DT1/Multi: Multiplier 1 ch0 op4
+  ym_write(0, 0x8C, val);
   YM2612_latchDacDataReg();
   Z80_releaseBus();  
 }
@@ -219,7 +343,7 @@ typedef struct {
   uint8_t ym_lfo_speed;
   uint8_t ym_detune;
   uint8_t ym_mult;
-  uint8_t ym_level;
+  uint8_t ym_level[YM_OP_CHAN_COUNT];
   uint8_t ym_release;
   uint8_t ym_sustain;
   uint8_t ym_decay;
@@ -339,7 +463,11 @@ void savegame_init(void) {
       ym_lfo_speed = mySave.ym_lfo_speed;
       ym_detune = mySave.ym_detune;
       ym_mult = mySave.ym_mult;
-      ym_level = mySave.ym_level;
+
+      for (int i=0; i<12; i++) {
+	ym_level[i] = mySave.ym_level[i];
+      }
+      
       ym_release = mySave.ym_release;
       ym_sustain = mySave.ym_sustain;
       ym_decay = mySave.ym_decay;
@@ -361,7 +489,14 @@ void savegame_init(void) {
       // send the saved settings to the ym chip
       set_ym_lfo(ym_lfo_enable, ym_lfo_speed);
       set_ym_detune_mult(ym_detune, ym_mult);
-      set_ym_level(ym_level);
+
+      for (uint8_t channel=0; channel<YM_CHAN_COUNT; channel++) {
+	for (uint8_t operator=0; operator<YM_OP_COUNT; operator++) {
+	  int index = channel * 4 + operator;
+	  set_ym_level(channel, operator, ym_level[index]);
+	}
+      }
+      
       set_ym_attack(ym_attack);
       set_ym_release_sustain(ym_release, ym_sustain);
       set_ym_decay_am(ym_decay, ym_am);
@@ -380,7 +515,14 @@ void savegame_init(void) {
 	mySave.ym_lfo_speed = ym_lfo_speed;
 	mySave.ym_detune = ym_detune;
 	mySave.ym_mult = ym_mult;
-	mySave.ym_level = ym_level;
+
+	for (uint8_t channel=0; channel<YM_CHAN_COUNT; channel++) {
+	  for (uint8_t operator=0; operator<YM_OP_COUNT; operator++) {
+	    int index = channel * 4 + operator;
+	    mySave.ym_level[index] = ym_level[index];
+	  }
+	}
+
 	mySave.ym_release = ym_release;
 	mySave.ym_sustain = ym_sustain;
 	mySave.ym_decay = ym_decay;
@@ -414,7 +556,14 @@ void savegame() {
   mySave.ym_lfo_speed = ym_lfo_speed;
   mySave.ym_detune = ym_detune;
   mySave.ym_mult = ym_mult;
-  mySave.ym_level = ym_level;
+
+  for (uint8_t channel=0; channel<YM_CHAN_COUNT; channel++) {
+    for (uint8_t operator=0; operator<YM_OP_COUNT; operator++) {
+      int index = channel * 4 + operator;
+      mySave.ym_level[index] = ym_level[index];
+    }
+  }
+  
   mySave.ym_release = ym_release;
   mySave.ym_sustain = ym_sustain;
   mySave.ym_decay = ym_decay;
@@ -691,7 +840,7 @@ void displayYMInstScreen() {
     vdp_puts(VDP_PLAN_A, s, 12, 3);    
 
     vdp_puts(VDP_PLAN_A, "level     :", 0, 4);
-    sprintf(s, "%03d", ym_level);
+    sprintf(s, "%03d", ym_level[ym_chan * 4 + ym_op]);
     vdp_puts(VDP_PLAN_A, s, 12, 4);    
 
     vdp_puts(VDP_PLAN_A, "attack    :", 0, 5);
@@ -734,6 +883,14 @@ void displayYMInstScreen() {
     sprintf(s, "%03d", ym_fms);
     vdp_puts(VDP_PLAN_A, s, 12, 14);
 
+    vdp_puts(VDP_PLAN_A, "operator  :", 0, 15);
+    sprintf(s, "%03d", ym_op);
+    vdp_puts(VDP_PLAN_A, s, 12, 15);
+
+    vdp_puts(VDP_PLAN_A, "channel   :", 0, 16);
+    sprintf(s, "%03d", ym_chan);
+    vdp_puts(VDP_PLAN_A, s, 12, 16);
+
     vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
     vdp_puts(VDP_PLAN_A, "<", 15, ym_select_field);
     
@@ -770,11 +927,13 @@ void displayYMInstScreen() {
       vdp_puts(VDP_PLAN_A, s, 12, 3);
       ym_mult_old = ym_mult;
     }
-    if (ym_level != ym_level_old) {
-      sprintf(s, "%03d", ym_level);
+
+    if (ym_level[ym_chan * 4 + ym_op] != ym_level_old) {
+      sprintf(s, "%03d", ym_level[ym_chan * 4 + ym_op]);
       vdp_puts(VDP_PLAN_A, s, 12, 4);
-      ym_level_old = ym_level;
+      ym_level_old = ym_level[ym_chan * 4 + ym_op];
     }
+    
     if (ym_attack != ym_attack_old) {
       sprintf(s, "%03d", ym_attack);
       vdp_puts(VDP_PLAN_A, s, 12, 5);
@@ -824,6 +983,16 @@ void displayYMInstScreen() {
       sprintf(s, "%03d", ym_fms);
       vdp_puts(VDP_PLAN_A, s, 12, 14);
       ym_fms_old = ym_fms;
+    }
+    if (ym_op != ym_op_old) {
+      sprintf(s, "%03d", ym_op);
+      vdp_puts(VDP_PLAN_A, s, 12, 15);
+      ym_op_old = ym_op;
+    }
+    if (ym_chan != ym_chan_old) {
+      sprintf(s, "%03d", ym_chan);
+      vdp_puts(VDP_PLAN_A, s, 12, 16);
+      ym_chan_old = ym_chan;
     }
   }
 }
@@ -995,8 +1164,8 @@ int main() {
 	    set_ym_detune_mult(ym_detune, ym_mult);
 	    savegame();
 	  } else if (ym_select_field == YM_FIELD_LEVEL) {
-	    if (ym_level > 0) ym_level--;
-	    set_ym_level(ym_level);
+	    if (ym_level[ym_chan * 4 + ym_op] > 0) ym_level[ym_chan * 4 + ym_op]--;
+	    set_ym_level(ym_chan, ym_op, ym_level[ym_chan * 4 + ym_op]);
 	    savegame();
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack > 0) ym_attack--;
@@ -1038,6 +1207,10 @@ int main() {
 	    if (ym_fms > 0) ym_fms--;
 	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
 	    savegame();
+	  } else if (ym_select_field == YM_FIELD_OP) {
+	    if (ym_op > 0) ym_op--;
+	  } else if (ym_select_field == YM_FIELD_CHAN) {
+	    if (ym_chan > 0) ym_chan--;
 	  }
 	} else if (screen == SCREEN_PROJECT) {
 	  if (tempo > 1) {
@@ -1129,8 +1302,8 @@ int main() {
 	    set_ym_detune_mult(ym_detune, ym_mult);
 	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_LEVEL) {
-	    if (ym_level < 0x7F) ym_level++;
-	    set_ym_level(ym_level);
+	    if (ym_level[ym_chan * 4 + ym_op] < 0x7F) ym_level[ym_chan * 4 + ym_op]++;
+	    set_ym_level(ym_chan, ym_op, ym_level[ym_chan * 4 + ym_op]);
 	    savegame();	    
 	  } else if (ym_select_field == YM_FIELD_ATTACK) {
 	    if (ym_attack < 0x1F) ym_attack++;
@@ -1172,6 +1345,10 @@ int main() {
 	    if (ym_fms < 7) ym_fms++;
 	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
 	    savegame();
+	  } else if (ym_select_field == YM_FIELD_OP) {
+	    if (ym_op < 3) ym_op++;
+	  } else if (ym_select_field == YM_FIELD_CHAN) {
+	    if (ym_chan < 5) ym_chan++;
 	  }
 	} else if (screen == SCREEN_PROJECT) {
 	  if (tempo < 255) {
