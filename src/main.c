@@ -92,7 +92,13 @@ int ym_select_field_old = -1;
 #define YM_FIELD_RELEASE 6
 #define YM_FIELD_SUSTAIN 7
 #define YM_FIELD_DECAY 8
-#define YM_FIELD_COUNT 9
+#define YM_FIELD_AM 9
+#define YM_FIELD_FEEDBACK 10
+#define YM_FIELD_ALGO 11
+#define YM_FIELD_PAN 12
+#define YM_FIELD_AMS 13
+#define YM_FIELD_FMS 14
+#define YM_FIELD_COUNT 15
 uint8_t ym_lfo_enable = 0;
 uint8_t ym_lfo_enable_old = 255;
 uint8_t ym_lfo_speed = 0;
@@ -113,6 +119,16 @@ uint8_t ym_decay = 0;
 uint8_t ym_decay_old = 255;
 uint8_t ym_am = 0;
 uint8_t ym_am_old = 255;
+uint8_t ym_feedback = 0;
+uint8_t ym_feedback_old = 255;
+uint8_t ym_algo = 0;
+uint8_t ym_algo_old = 255;
+uint8_t ym_pan = 0;
+uint8_t ym_pan_old = 255;
+uint8_t ym_ams = 0;
+uint8_t ym_ams_old = 255;
+uint8_t ym_fms = 0;
+uint8_t ym_fms_old = 255;
 
 /* psg sequencer */
 int psgNoteSeq[16] = {20,0,22,0,29,28,0,0,14,15,0,11,0,0,7,6}; // playback speed sequence
@@ -169,6 +185,22 @@ void set_ym_decay_am(uint8_t decay, uint8_t amenable) {
   Z80_releaseBus();  
 }
 
+void set_ym_feedback_algo(uint8_t feedback, uint8_t algo) {
+  Z80_requestBus(1);
+  uint8_t val = ((feedback & 0x7) << 3) | (algo & 0x7);
+  ym_write(0, 0xB0, val);
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();    
+}
+
+void set_ym_pan_ams_fms(uint8_t pan, uint8_t ams, uint8_t fms) {
+  Z80_requestBus(1);
+  uint8_t val = ((pan & 3) << 6) | ((ams & 3) << 4) | (fms & 7);
+  ym_write(0, 0xB4, val);
+  YM2612_latchDacDataReg();
+  Z80_releaseBus();    
+}
+
 /* savegame stuff */
 // Define key SRAM memory addresses as volatile pointers
 // Volatile is crucial as the hardware might change values outside the C program's control
@@ -192,6 +224,11 @@ typedef struct {
   uint8_t ym_sustain;
   uint8_t ym_decay;
   uint8_t ym_am;
+  uint8_t ym_feedback;
+  uint8_t ym_algo;
+  uint8_t ym_pan;
+  uint8_t ym_ams;
+  uint8_t ym_fms;
   
   uint8_t sequence[16];
   uint8_t accent[16];
@@ -307,6 +344,11 @@ void savegame_init(void) {
       ym_sustain = mySave.ym_sustain;
       ym_decay = mySave.ym_decay;
       ym_am = mySave.ym_am;
+      ym_feedback = mySave.ym_feedback;
+      ym_algo = mySave.ym_algo;
+      ym_pan = mySave.ym_pan;
+      ym_ams = mySave.ym_ams;
+      ym_fms = mySave.ym_fms;
       
       for (int i=0; i<16; i++) {
 	gateseq[i] = mySave.sequence[i];
@@ -323,6 +365,8 @@ void savegame_init(void) {
       set_ym_attack(ym_attack);
       set_ym_release_sustain(ym_release, ym_sustain);
       set_ym_decay_am(ym_decay, ym_am);
+      set_ym_feedback_algo(ym_feedback, ym_algo);
+      set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
       
       vdp_text_clear(VDP_PLAN_A, 3, 18, 40);
       vdp_puts(VDP_PLAN_A, "saved sequence loaded", 3, 18);
@@ -341,6 +385,11 @@ void savegame_init(void) {
 	mySave.ym_sustain = ym_sustain;
 	mySave.ym_decay = ym_decay;
 	mySave.ym_am = ym_am;
+	mySave.ym_feedback = ym_feedback;
+	mySave.ym_algo = ym_algo;
+	mySave.ym_pan = ym_pan;
+	mySave.ym_ams = ym_ams;
+	mySave.ym_fms = ym_fms;
 	
 	for (int i=0; i<16; i++) {
 	  mySave.sequence[i] = gateseq[i];
@@ -370,6 +419,11 @@ void savegame() {
   mySave.ym_sustain = ym_sustain;
   mySave.ym_decay = ym_decay;
   mySave.ym_am = ym_am;
+  mySave.ym_feedback = ym_feedback;
+  mySave.ym_algo = ym_algo;
+  mySave.ym_pan = ym_pan;
+  mySave.ym_ams = ym_ams;
+  mySave.ym_fms = ym_fms;
 
   for (int i=0; i<16; i++) {
     mySave.sequence[i] = gateseq[i];
@@ -656,6 +710,30 @@ void displayYMInstScreen() {
     sprintf(s, "%03d", ym_decay);
     vdp_puts(VDP_PLAN_A, s, 12, 8);
 
+    vdp_puts(VDP_PLAN_A, "am        :", 0, 9);
+    sprintf(s, "%03d", ym_am);
+    vdp_puts(VDP_PLAN_A, s, 12, 9);
+
+    vdp_puts(VDP_PLAN_A, "feedback  :", 0, 10);
+    sprintf(s, "%03d", ym_feedback);
+    vdp_puts(VDP_PLAN_A, s, 12, 10);
+
+    vdp_puts(VDP_PLAN_A, "algo      :", 0, 11);
+    sprintf(s, "%03d", ym_algo);
+    vdp_puts(VDP_PLAN_A, s, 12, 11);
+
+    vdp_puts(VDP_PLAN_A, "pan       :", 0, 12);
+    sprintf(s, "%03d", ym_pan);
+    vdp_puts(VDP_PLAN_A, s, 12, 12);
+
+    vdp_puts(VDP_PLAN_A, "ams       :", 0, 13);
+    sprintf(s, "%03d", ym_ams);
+    vdp_puts(VDP_PLAN_A, s, 12, 13);
+
+    vdp_puts(VDP_PLAN_A, "fms       :", 0, 14);
+    sprintf(s, "%03d", ym_fms);
+    vdp_puts(VDP_PLAN_A, s, 12, 14);
+
     vdp_puts(VDP_PLAN_A, ">", 11, ym_select_field);
     vdp_puts(VDP_PLAN_A, "<", 15, ym_select_field);
     
@@ -716,6 +794,36 @@ void displayYMInstScreen() {
       sprintf(s, "%03d", ym_decay);
       vdp_puts(VDP_PLAN_A, s, 12, 8);
       ym_decay_old = ym_decay;
+    }
+    if (ym_am != ym_am_old) {
+      sprintf(s, "%03d", ym_am);
+      vdp_puts(VDP_PLAN_A, s, 12, 9);
+      ym_am_old = ym_am;
+    }
+    if (ym_feedback != ym_feedback_old) {
+      sprintf(s, "%03d", ym_feedback);
+      vdp_puts(VDP_PLAN_A, s, 12, 10);
+      ym_feedback_old = ym_feedback;
+    }
+    if (ym_algo != ym_algo_old) {
+      sprintf(s, "%03d", ym_algo);
+      vdp_puts(VDP_PLAN_A, s, 12, 11);
+      ym_algo_old = ym_algo;
+    }
+    if (ym_pan != ym_pan_old) {
+      sprintf(s, "%03d", ym_pan);
+      vdp_puts(VDP_PLAN_A, s, 12, 12);
+      ym_pan_old = ym_pan;
+    }
+    if (ym_ams != ym_ams_old) {
+      sprintf(s, "%03d", ym_ams);
+      vdp_puts(VDP_PLAN_A, s, 12, 13);
+      ym_ams_old = ym_ams;
+    }
+    if (ym_fms != ym_fms_old) {
+      sprintf(s, "%03d", ym_fms);
+      vdp_puts(VDP_PLAN_A, s, 12, 14);
+      ym_fms_old = ym_fms;
     }
   }
 }
@@ -906,6 +1014,30 @@ int main() {
 	    if (ym_decay > 0) ym_decay--;
 	    set_ym_decay_am(ym_decay, ym_am);
 	    savegame();
+	  } else if (ym_select_field == YM_FIELD_AM) {
+	    if (ym_am > 0) ym_am--;
+	    set_ym_decay_am(ym_decay, ym_am);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_FEEDBACK) {
+	    if (ym_feedback > 0) ym_feedback--;
+	    set_ym_feedback_algo(ym_feedback, ym_algo);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_ALGO) {
+	    if (ym_algo > 0) ym_algo--;
+	    set_ym_feedback_algo(ym_feedback, ym_algo);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_PAN) {
+	    if (ym_pan > 0) ym_pan--;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_AMS) {
+	    if (ym_ams > 0) ym_ams--;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_FMS) {
+	    if (ym_fms > 0) ym_fms--;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
 	  }
 	} else if (screen == SCREEN_PROJECT) {
 	  if (tempo > 1) {
@@ -1016,6 +1148,30 @@ int main() {
 	    if (ym_decay < 0x1F) ym_decay++;
 	    set_ym_decay_am(ym_decay, ym_am);
 	    savegame();	    
+	  } else if (ym_select_field == YM_FIELD_AM) {
+	    if (ym_am == 0) ym_am++;
+	    set_ym_decay_am(ym_decay, ym_am);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_FEEDBACK) {
+	    if (ym_feedback < 0x7) ym_feedback++;
+	    set_ym_feedback_algo(ym_feedback, ym_algo);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_ALGO) {
+	    if (ym_algo < 7) ym_algo++;
+	    set_ym_feedback_algo(ym_feedback, ym_algo);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_PAN) {
+	    if (ym_pan < 3) ym_pan++;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_AMS) {
+	    if (ym_ams < 3) ym_ams++;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
+	  } else if (ym_select_field == YM_FIELD_FMS) {
+	    if (ym_fms < 7) ym_fms++;
+	    set_ym_pan_ams_fms(ym_pan, ym_ams, ym_fms);
+	    savegame();
 	  }
 	} else if (screen == SCREEN_PROJECT) {
 	  if (tempo < 255) {
